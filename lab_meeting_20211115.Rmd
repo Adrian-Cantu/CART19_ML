@@ -1,0 +1,253 @@
+---
+title: "Lab Meeting"
+author: Adrian Cantu
+date: November 15, 2021
+output:
+  beamer_presentation:
+    theme: "Warsaw"
+    colortheme: "whale"
+    fonttheme: "structurebold"
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{xcolor}
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gt23)
+library(RMySQL)
+library(openxlsx)
+library(tidyverse)
+library(VennDiagram)
+library(kableExtra)
+library(randomForest)
+knitr::opts_chunk$set(
+  echo = FALSE,
+  echo = FALSE,
+  warning = FALSE,
+  error = TRUE,
+  message = FALSE,
+  cache = FALSE
+#  dev = "png",
+#  dev.args = list(type = "cairo-png")
+)
+
+```
+
+```{r getData, warning=FALSE}
+dbConn  <- dbConnect(MySQL(), group='specimen_management')
+samples <- dbGetQuery(dbConn, 
+                      'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')                   
+response_page1 <- openxlsx::read.xlsx("CART19 Patient_Response Info_12102020.xlsx", 1, detectDates = TRUE)
+response_page2 <- openxlsx::read.xlsx("CART19 Patient_Response Info_12102020.xlsx", 2, detectDates = TRUE)
+
+
+
+kk  <- samples %>% filter(Patient %in% response_page1$Patient.ID)
+response_page2_bis <- response_page2 %>% mutate(SamplePatientCode=paste0(protocol,'-',ID))
+kk2 <- samples %>% filter(SamplePatientCode %in% response_page2_bis$SamplePatientCode)
+kk3 <- samples %>% filter(grepl('^[CPN]R',samples$MiscComments))
+nobles_sampleData <- read.table('sampleData.tsv', sep = '\t', header = TRUE) 
+nobles_sampleData_f <- nobles_sampleData %>%
+  filter(Response_class!='')
+kk4 <- samples %>% filter( SpecimenAccNum %in% nobles_sampleData_f$SpecimenAccNum)
+found_samples_GTSP <- unique(c(kk$SpecimenAccNum,kk2$SpecimenAccNum,kk3$SpecimenAccNum,kk4$SpecimenAccNum))
+
+missing_samples <- samples %>% filter(!(SpecimenAccNum %in% found_samples_GTSP))
+
+sets <- list(
+  page1 = kk$SpecimenAccNum, 
+  page2 = kk2$SpecimenAccNum, 
+  misc = kk3$SpecimenAccNum,
+  cnobles = kk4$SpecimenAccNum
+)
+raw_data <- readRDS('result_full_ALL_CLL_ML.rds')
+df<- readRDS('t_sne.rds')
+
+display_venn <- function(x, ...){
+  grid.newpage()
+  venn_object <- venn.diagram(x, filename = NULL, ...)
+  grid.draw(venn_object)
+}
+
+rf2 <- readRDS('rf_resp.rds')
+rf_c <- readRDS('rf_can.rds')
+```
+
+
+# CART Therapy
+
+--- 
+
+```{r pressure, echo=FALSE, out.width = '90%'}
+knitr::include_graphics("fig/CART_intro.jpg")
+```
+
+## CART19 
+
+Clinical trial to assess CART efficacy and cellular kinetics of CART19 in CD19+ leukemia and lymphoma subjects. 
+
+* acute lymphoblastic leukemia (ALL) 80% complete response rate
+* chronic lymphocytic leukemia (CLL) 26% complete response rate
+
+---
+
+```{r cart19Samples}
+df %>% group_by(cancer,timepoint_factor) %>%
+  summarise(N=n()) %>%
+  kbl(booktabs = T) %>%
+kable_styling(latex_options = c("striped"),font_size = 10)
+```
+## Goal
+
+To use Machine Learning to elucidate properties of the data
+
+* What is the difference between CLL and ALL
+* Can we predict if CART19 therapy is going to work *a priori*?
+
+
+## Machine Learning
+
+```{r ml_fig,out.width = '90%'}
+knitr::include_graphics("fig/machine-learning.png")
+```
+
+
+## Available features
+\tiny
+```{r feat,results='asis'}
+colnames(raw_data)
+```
+\normalsize
+
+## Missing data
+
+```{r missing}
+df %>% mutate(Response_class=ifelse(Response_class=='MISS','need','have')) %>% group_by(Response_class,cancer ) %>% summarise(N=n()) %>%
+  kbl(booktabs = T) %>%
+kable_styling(latex_options = c("striped"),font_size = 7)
+```
+
+---
+
+```{r responseVenn,out.width="90%",fig.align="center"}
+
+sets <- list(
+  page1 = kk$SpecimenAccNum, 
+  page2 = kk2$SpecimenAccNum, 
+  misc = kk3$SpecimenAccNum,
+  cnobles = kk4$SpecimenAccNum
+)
+
+display_venn(
+  sets,
+#  category.names = c("Set 1" , "Set 2 " , "Set 3", "Set 4"),
+  # Circles
+  lwd = 2,
+  lty = 'blank',
+  fill = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+  # Numbers
+  cex = .9,
+  fontface = "italic",
+  # Set names
+  cat.cex = 1,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  cat.dist = c(0.055, 0.055, 0.1, 0.1)
+)
+```
+
+# Random Forest
+
+---
+
+## Random forest
+
+* Random forest (RF) is an supervised ML method
+* It works by sub sampling the data with replacement (bootsrap) many times
+and generating a decision tree for each subsample.
+* A prediction can be made on a new observation by having all trees in the forest
+vote.
+* Out of bag error gives a good estimation of the generalization error.
+* Feature importance can be computed.
+
+## response class
+\small
+```{r rf2}
+rf2
+```
+\normalsize
+
+---
+
+```{r rf2Fig ,out.width = '90%'}
+varImpPlot(rf2,type=1)
+```
+
+## cancer type
+\small
+```{r rfc2}
+rf_c
+```
+\normalsize
+
+---
+
+```{r rfc2Fig ,out.width = '90%'}
+varImpPlot(rf_c,type=1)
+```
+
+# t-sne
+
+---
+
+ 
+* t-Distributed Stochastic Neighbor Embedding (t-SNE) is a non-linear dimensionality reduction algorithm used for exploring high-dimensional data.
+* It maps multi-dimensional data to two or more dimensions suitable for human observation
+
+## Response class
+
+```{r tsberesp ,out.width = '85%'}
+knitr::include_graphics("fig/tsne_resp.pdf")
+```
+
+## Cancer type
+
+```{r tsneC ,out.width = '85%'}
+knitr::include_graphics("fig/tsne_c.pdf")
+```
+
+## Timepoint
+
+```{r tsneTime ,out.height = '80%'}
+knitr::include_graphics("fig/tsne_time.pdf")
+```
+
+## Timepint (binned)
+
+```{r tsneTimeB ,out.height = '80%'}
+knitr::include_graphics("fig/tsne_time_f.pdf")
+```
+
+# TODO
+
+---
+
+TODO
+
+* Update (and rename) epigenetic features
+* Acquire response class data
+* Extend feature library

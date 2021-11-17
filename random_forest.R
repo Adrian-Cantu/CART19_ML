@@ -23,7 +23,8 @@ rf2 <- randomForest(x=train_data_x %>% select(all_of(top_rf))
                       ,y=train_response,ntree=600,
                       importance = TRUE,proximity = TRUE)
 rf2
-
+saveRDS(rf2,'rf_resp.rds')
+varImpPlot(rf2,type=1)
 # predict cancer type ------------
 
 
@@ -38,4 +39,4 @@ rf_c <- randomForest(x=full_data_x,y=full_cancer,ntree=600,
 rf_c
 plot(rf_c)
 varImpPlot(rf_c,type=1)
-
+saveRDS(rf_c,'rf_can.rds')
