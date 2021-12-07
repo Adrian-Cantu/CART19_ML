@@ -4,31 +4,37 @@ library(openxlsx)
 library(class)
 #library(sigmoid)
 
-raw_data <- readRDS('features/intSites_full_ALL_CLL_plus_epi.rds')
-unlearn_features<- colnames(raw_data)[1:29]
-full_data <- raw_data %>% drop_na() %>% distinct(across(-all_of(unlearn_features)),.keep_all = TRUE)
-full_data_x <- full_data %>% select(-all_of(unlearn_features))
-full_data_y <- full_data %>% select(all_of(unlearn_features))
-t_sne <- Rtsne(full_data_x,check_duplicates=FALSE,verbose=TRUE)
 
-df_tmp <- data.frame(
-  X=t_sne$Y[,1],
-  Y=t_sne$Y[,2]
-)
 
-df_tmp2 <- cbind(df_tmp,full_data_y) 
-response_class <- read.xlsx('data/ALL_CLL_samples_20211124.xlsx','All_samples') %>%
-  select(c('Patient','Response_class')) %>% rename(patient=Patient)
-df <- left_join(df_tmp2,response_class,by='patient')  %>%
-  drop_na() %>%
-  filter(Response_class!='MISSING')
-saveRDS(left_join(df_tmp2,response_class,by='patient'),file = 'data/tsne-df.rds')
+if(file.exists('data/tsne-df.rds')) {
+  df <- readRDS('data/tsne-df.rds')
+} else {
+  raw_data <- readRDS('features/intSites_full_ALL_CLL_plus_epi.rds')
+  unlearn_features<- colnames(raw_data)[1:29]
+  full_data <- raw_data %>% drop_na() %>% distinct(across(-all_of(unlearn_features)),.keep_all = TRUE)
+  full_data_x <- full_data %>% select(-all_of(unlearn_features))
+  full_data_y <- full_data %>% select(all_of(unlearn_features))
+  t_sne <- Rtsne(full_data_x,check_duplicates=FALSE,verbose=TRUE,num_threads=30)
+
+  df_tmp <- data.frame(
+    X=t_sne$Y[,1],
+    Y=t_sne$Y[,2]
+  )
+
+  df_tmp2 <- cbind(df_tmp,full_data_y) 
+  response_class <- read.xlsx('data/ALL_CLL_samples_20211124.xlsx','All_samples') %>%
+    select(c('Patient','Response_class')) %>% rename(patient=Patient)
+  df <- left_join(df_tmp2,response_class,by='patient')  %>%
+    drop_na() %>%
+    filter(Response_class!='MISSING')
+  saveRDS(df,file = 'data/tsne-df.rds')
+}
 
 fig_c <- ggplot(df, aes(x=X, y=Y, color=Response_class)) +
   geom_point() 
 #+ geom_rug()
 # ggsave('fig/tsne_c.pdf',plot=fig_c)
-ggsave('fig/tsne_intsites.pdf',plot=fig_c)
+# ggsave('fig/tsne_intsites.pdf',plot=fig_c)
 ggsave('fig/tsne_intsites.png',plot=fig_c)
 
 knn_mat <- df %>% select(c(X,Y))
