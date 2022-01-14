@@ -3,12 +3,13 @@ library(tidyverse)
 library(hiAnnotator)
 library(furrr)
 
-dbConn  <- dbConnect(MySQL(), group='specimen_management')
-samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')                      
+                    
 
 
 
-if( !file.exists('intSites_full_ALL_CLL.rds') ) {
+if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
+  dbConn  <- dbConnect(MySQL(), group='specimen_management')
+  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')  
   intSites <- getDBgenomicFragments(samples$SpecimenAccNum, 
                                     'specimen_management', 'intsites_miseq') %>%
     GenomicRanges::as.data.frame() %>% filter(refGenome == 'hg38') %>%
@@ -16,9 +17,9 @@ if( !file.exists('intSites_full_ALL_CLL.rds') ) {
     stdIntSiteFragments(CPUs = numCores ) %>%
     collapseReplicatesCalcAbunds() %>%
     annotateIntSites(CPUs = numCores)
-  saveRDS(intSites, 'intSites_full_ALL_CLL.rds')
+  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL_CLL.rds'))
 } else {
-  intSites <- readRDS('intSites_full_ALL_CLL.rds')
+  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL_CLL.rds'))
 }
 intSites <- intSites %>% as.data.frame() %>%
   mutate(GTPSposID=paste0(GTSP,posid  )) %>%
@@ -30,8 +31,8 @@ intSites <- intSites %>% as.data.frame() %>%
    filter(GTSP=='GTSP0567') %>% GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns=TRUE)
 
 
-epigenetic_features_path <- "epi_rds" 
-epi_files <- list.files(epigenetic_features_path)
+
+epi_files <- list.files(.epigenetic_features_d)
 names(epi_files) <- epi_files %>% str_remove(., ".rds")
 
 ## tested
@@ -39,11 +40,11 @@ names(epi_files) <- epi_files %>% str_remove(., ".rds")
 all_names <- unique(intSites$GTSP)
 
 
-all_epi <- lapply(epi_files,function(x){readRDS(file.path("epi_rds", x))})
+all_epi <- lapply(epi_files,function(x){readRDS(file.path(.epigenetic_features_d, x))})
 #kk_test <- getFeatureCounts(intSites, all_epi[[1]], 'test')
 
 plan(sequential)
-plan(multisession, workers = 30)
+plan(multisession, workers = .num_cores)
 l_names <- length(all_names)
 full_table2 <- lapply(all_names,function(c_gtsp){
   c_sample <- intSites %>% as.data.frame() %>%
@@ -68,7 +69,7 @@ full_table2 <- lapply(all_names,function(c_gtsp){
 epi_final_data <- Reduce(rbind,full_table2)
 final_final_data <- left_join(intSites %>% as.data.frame(),epi_final_data,by='GTPSposID')
 
-saveRDS(epi_final_data,file='epi_data.rds')
-saveRDS(final_final_data,file='intSites_full_ALL_CLL_plus_epi.rds')
+saveRDS(epi_final_data,file=file.path(.features_d,'epi_data.rds'))
+saveRDS(final_final_data,file=file.path(.features_d,'intSites_full_ALL_CLL_plus_epi.rds'))
 
 

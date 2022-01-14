@@ -46,7 +46,8 @@ if(file.exists('data/tsne-df.rds')) {
 
 ```{r pressure, echo=FALSE}
 ggplot(df, aes(x=X, y=Y, color=Response_class)) +
-  geom_point()
+  geom_point() +
+  facet_wrap( ~ Response_class)
 
 pyx <- df %>% select(c(X,Y))
 pyy <- df %>% select(Response_class)
