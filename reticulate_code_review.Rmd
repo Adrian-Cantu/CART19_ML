@@ -1,0 +1,100 @@
+---
+title: "reticulate FotD"
+output:
+  bookdown::html_document2: default
+---
+
+
+<!-- <style type="text/css"> -->
+<!-- .main-container { -->
+<!--   max-width: 70% !important; -->
+<!--   margin: auto; -->
+<!-- } -->
+<!-- </style> -->
+
+
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(kableExtra)
+library(reticulate)
+```
+
+
+# Reticulate
+
+you can use any conda environment to run python code in R.
+
+```{r conda}
+reticulate::conda_list(conda = "auto") %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+py_config()
+```
+
+```{r change, eval=FALSE, include=FALSE}
+reticulate::conda_list(conda = "auto")
+reticulate::use_condaenv(condaenv = 'p27', required = TRUE)
+reticulate::py_config()
+reticulate::use_condaenv(condaenv = 'r-reticulate', required = TRUE)
+.rs.restartR()
+reticulate::use_condaenv(condaenv = 'r-reticulate', required = TRUE)
+reticulate::py_config()
+```
+
+# Radius Neighbors Classifier
+
+Using epigenomic markers near insertion sites in CART theraphy to alucidate which sites
+might predict treatment outcome.
+
+```{r load}
+df <- readRDS(file.path(.data_d,'tsne-df.rds'))
+head(df) %>%
+  kbl() %>%
+  kable_paper() %>%
+  scroll_box(width = "80%", height = "200px")
+```
+
+Show porjection of inserion sites into a latent space
+```{r single}
+ggplot(df, aes(x=X, y=Y, color=Response_class)) +
+  geom_point()
+```
+
+```{r dual}
+ggplot(df, aes(x=X, y=Y, color=Response_class)) +
+  geom_point() +
+  facet_wrap( ~ Response_class)
+```
+
+Formatting projection and responce of each site
+```{r format}
+pyx <- df %>% select(c(X,Y))
+pyy <- df %>% select(Response_class)
+```
+
+# Running python code
+
+The __"r"__ object __python__ contains an interface to the __R__ variables
+
+```{python radius}
+import pandas
+from sklearn.neighbors import RadiusNeighborsClassifier
+
+model = RadiusNeighborsClassifier(radius=0.1)
+__ = model.fit(r.pyx,r.pyy.values.ravel())
+yhat = model.predict(r.pyx)
+```
+
+The __"py"__ object in __R__ contains an interface to the __python__ variables
+
+```{r yhats}
+df_imp1 <- df[py$yhat == df$Response_class,]
+
+ ggplot(df_imp1, aes(x=X, y=Y,color=Response_class)) +
+ geom_point() +
+ facet_wrap( ~ Response_class)
+```
+
+More information can be found in <https://rstudio.github.io/reticulate/>
