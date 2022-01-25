@@ -93,7 +93,7 @@ from_counts_to_density <- function(sites, column_prefix, window_size) {
 #all_names <- unique(intSites$GTSP)[100:104]
 all_names <- unique(intSites$GTSP)
 plan(sequential)
-plan(multisession, workers = .num_cores)
+#plan(multisession, workers = .num_cores)
 l_names <- length(all_names)
 
 
@@ -115,9 +115,8 @@ full_table2 <- map(all_names, function(c_gtsp) {
     return(c_tab)
 })
 
-gen_final_data <- Reduce(rbind,full_table2)
+gen_final_data <- Reduce(rbind,full_table2) %>% select(-c(seqnames:nearestlymphomaFeatureStrand,nn))
 final_final_data <- left_join(intSites %>% as.data.frame(),gen_final_data,by='GTPSposID')
-
 
 saveRDS(gen_final_data,file=file.path(.features_d,'gen_data.rds'))
 saveRDS(final_final_data,file=file.path(.features_d,'intSites_full_ALL_CLL_plus_gen.rds'))

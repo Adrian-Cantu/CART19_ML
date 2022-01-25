@@ -25,6 +25,7 @@ intSites <- intSites %>% as.data.frame() %>%
   mutate(GTPSposID=paste0(GTSP,posid  )) %>%
   group_by(GTSP) %>% mutate(nn=n()) %>%
   ungroup() %>% filter(nn>100) %>%
+  filter(seqnames %in% paste0("chr", c(1:22, "X", "Y", "M"))) %>%
   GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns=TRUE)
 
  test_sample <- intSites %>% as.data.frame() %>%
