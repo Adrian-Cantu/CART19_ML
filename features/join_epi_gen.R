@@ -34,11 +34,11 @@ if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
 
 intSites_dd <- intSites %>% as.data.frame() %>%
   mutate(GTPSposID=paste0(GTSP,posid  )) %>%
-#  group_by(GTSP) %>%
-#  mutate(nn=n()) %>%
-#  ungroup() %>%
-#  filter(nn>100) %>%
-#  mutate(nn=NULL) %>%
+  group_by(GTSP) %>%
+  mutate(nn=n()) %>%
+  ungroup() %>%
+  filter(nn>100) %>%
+  mutate(nn=NULL) %>%
   filter(seqnames %in% paste0("chr", c(1:22, "X", "Y", "M")))
 
 # intSites_dd %>%
@@ -82,6 +82,8 @@ gtsp_to_pid <- samples %>% select(c("SpecimenAccNum","SamplePatientCode","Patien
   select(c(GTSP,PID,Trial))
 
 pid_to_bor <- CARTSite_Response %>%
+  group_by(Trial,ID) %>%
+  summarise(BORc=max(BORc), .groups = 'drop') %>%
   mutate(PID=paste0(Trial,'-',sprintf("%02d", ID))) %>%
   select(c(PID,BORc))
  
@@ -162,6 +164,9 @@ openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220209.xlsx'
 #   filter(is.na(BORc)) %>%
 #   pull(var=GTSP)
 
+# features_responses_pop2 %>%
+#   dplyr::filter(if_any(.cols = everything(),is.na))
+
 #missSample <- 
   
 #  samples %>%
@@ -174,79 +179,25 @@ openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220209.xlsx'
 
   
 #features_responses_pop$BORc
-library(readxl)
-John_CART <- read_excel("data/John_CART.xlsx")
-
-kk_j <- John_CART %>%
-  filter(!is.na(Chao1)) %>%
-  pull(var=Chao1,name=SpecimenAccNum)
-
-kk_a <- features_responses_pop2 %>%
-  pull(var=Chao1,name=SpecimenAccNum)
-
-blabla <- setdiff(names(kk_j),names(kk_a))
-int_blabla <- intersect(names(kk_j),names(kk_a))
-kk_aa <- kk_a[names(kk_a) %in% int_blabla]
-kk_jj <- kk_j[names(kk_j) %in% int_blabla]
-
-kk_aa[duplicated(names(kk_aa))]
-#kk_aaa <- 
-  
-features_responses_pop %>%
-  GenomicRanges::as.data.frame() %>%
-  dplyr::filter(GTSP=='GTSP0737') #%>%
-  nrow()
-
-  features_responses %>%
-    GenomicRanges::as.data.frame() %>%
-    dplyr::filter(GTSP=='GTSP0737') %>%
-  nrow()
-
-  # merging features and responses class
-  
-  features_responses <- left_join(gtsp_avg_epi_gen,gtsp_to_bor,by='GTSP')
-  
-  gtsp_avg_epi_gen %>%
-    GenomicRanges::as.data.frame() %>%
-    dplyr::filter(GTSP=='GTSP0737') %>%
-  nrow()
-  
-  gtsp_to_bor %>%
-    GenomicRanges::as.data.frame() %>%
-    dplyr::filter(GTSP=='GTSP0737') #%>%
-    nrow()
-    
-    gtsp_to_bor <- left_join(gtsp_to_pid,pid_to_bor,by='PID') 
-    
-    gtsp_to_pid %>%
-      dplyr::filter(GTSP=='GTSP0737')
-    
-    pid_to_bor %>%
-      dplyr::filter(PID=='UPCC04409-05')
-  
-sampless <- dbGetQuery(dbConn,'select * from gtsp')
-
-blabla2 <- sampless %>% filter(SpecimenAccNum %in% blabla)
-blabla3 <- intSites %>% as.data.frame() %>% filter(GTSP %in% blabla)
-blabla4 <- intSites_dd %>% filter(GTSP %in% blabla)
-
-unique(blabla2$SpecimenAccNum) %>% 
-  length()
-
-unique(blabla3$GTSP) %>% 
-  length()
-
-unique(blabla4$GTSP) %>% 
-  length()
-
-sum(features_responses_pop2$SpecimenAccNum %in% blabla)
-
-epikk <- epi_f %>% separate(GTPSposID,c('GTSP','posID'),'(?<=GTSP....)(?=chr.*$)')
-epikk %>% filter(GTSP %in% blabla) %>% nrow()
-
-genkk <- gen_f %>% separate(GTPSposID,c('GTSP','posID'),'(?<=GTSP....)(?=chr.*$)')
-genkk %>% filter(GTSP %in% blabla) %>% nrow()
-# colnames(features_responses_pop2)
-# colnames(John_CART)
-# setdiff(colnames(John_CART),colnames(features_responses_pop2))
-# intersect(colnames(John_CART),colnames(features_responses_pop2))
+# library(readxl)
+# John_CART <- read_excel("data/John_CART.xlsx")
+# 
+# topull <- 'H2BK5ac.10k'
+# 
+# for(topull in intersect(colnames(John_CART),colnames(features_responses_pop2))) {
+# kk_j <- John_CART %>%
+#   filter(!is.na(Chao1)) %>%
+#   pull(var=all_of(topull),name=SpecimenAccNum)
+# 
+# kk_a <- features_responses_pop2 %>%
+#   pull(var=all_of(topull),name=SpecimenAccNum)
+# 
+# blabla <- setdiff(names(kk_j),names(kk_a))
+# int_blabla <- intersect(names(kk_j),names(kk_a))
+# kk_aa <- kk_a[names(kk_a) %in% int_blabla]
+# kk_jj <- kk_j[names(kk_j) %in% int_blabla]
+# 
+# print(topull)
+# print(kk_aa[int_blabla][1:5])
+# print(kk_jj[int_blabla][1:5])
+# }
