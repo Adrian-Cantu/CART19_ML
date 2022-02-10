@@ -179,8 +179,15 @@ openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220209.xlsx'
 
   
 #features_responses_pop$BORc
-# library(readxl)
-# John_CART <- read_excel("data/John_CART.xlsx")
+#  library(readxl)
+#  John_CART <- read_excel("data/John_CART.xlsx")
+# setdiff(colnames(John_CART),colnames(features_responses_pop2))
+#  
+# jCART100 <- John_CART %>% 
+#   filter(numUniqSites>100)
+# 
+# setdiff(jCART100$SpecimenAccNum,features_responses_pop2$SpecimenAccNum)
+# setdiff(features_responses_pop2$SpecimenAccNum,jCART100$SpecimenAccNum)
 # 
 # topull <- 'H2BK5ac.10k'
 # 
