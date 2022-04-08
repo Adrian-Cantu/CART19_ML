@@ -47,6 +47,7 @@ intSites_dd <- intSites %>% as.data.frame() %>%
 #   unique()
 
 
+
 gtsp_avg_epi_gen <- left_join(gen_f,epi_f,by='GTPSposID') %>%
   separate(GTPSposID,c('GTSP','posID'),'(?<=GTSP....)(?=chr.*$)') %>%
   select(-posID) %>%
@@ -92,6 +93,19 @@ gtsp_to_bor <- left_join(gtsp_to_pid,pid_to_bor,by='PID')
 # merging features and responses class
 
 features_responses <- left_join(gtsp_avg_epi_gen,gtsp_to_bor,by='GTSP')
+
+# saving per site features
+gtsp_epi_gen <- left_join(gen_f,epi_f,by='GTPSposID') %>%
+  separate(GTPSposID,c('GTSP','posID'),'(?<=GTSP....)(?=chr.*$)',remove = FALSE) #%>%
+  #dplyr::rename(GTSPposID=GTPSposID)
+
+#features_persite_responses_tmp <- left_join(gtsp_epi_gen,gtsp_to_bor,by='GTSP')
+features_persite_responses <- left_join(intSites_dd %>%
+                                          select(c(patient,cellType,timePointDays,GTPSposID)),
+                                        left_join(gtsp_epi_gen,gtsp_to_bor,by='GTSP'),
+                                        by='GTPSposID'
+                                        )
+saveRDS(features_persite_responses,file = file.path(.features_d,'persite_epi_gen_resp.rds'))
 
 # 
 calculateUC50 <- function(abund){

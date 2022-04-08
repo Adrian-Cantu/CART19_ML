@@ -49,7 +49,7 @@ Using epigenomic markers near insertion sites in CART theraphy to alucidate whic
 might predict treatment outcome.
 
 ```{r load}
-df <- readRDS(file.path(.data_d,'tsne-df.rds'))
+df <- readRDS(file.path(.data_d,'tsne-df_site.rds'))
 head(df) %>%
   kbl() %>%
   kable_paper() %>%
@@ -58,20 +58,25 @@ head(df) %>%
 
 Show porjection of inserion sites into a latent space
 ```{r single}
-ggplot(df, aes(x=X, y=Y, color=Response_class)) +
+tsne_cc <- ggplot(df, aes(x=X, y=Y, color=BORc)) +
   geom_point()
+ggsave('fig/tsne_cc.png',plot=tsne_cc)
+tsne_cc
 ```
 
 ```{r dual}
-ggplot(df, aes(x=X, y=Y, color=Response_class)) +
+tsne_all <- ggplot(df, aes(x=X, y=Y, color=BORc)) +
   geom_point() +
-  facet_wrap( ~ Response_class)
+  facet_wrap( ~ BORc)
+ggsave('fig/tsne_all.png',plot=tsne_all)
+tsne_all
+
 ```
 
 Formatting projection and responce of each site
 ```{r format}
 pyx <- df %>% select(c(X,Y))
-pyy <- df %>% select(Response_class)
+pyy <- df %>% select(BORc)
 ```
 
 # Running python code
@@ -82,7 +87,7 @@ The __"r"__ object __python__ contains an interface to the __R__ variables
 import pandas
 from sklearn.neighbors import RadiusNeighborsClassifier
 
-model = RadiusNeighborsClassifier(radius=0.1)
+model = RadiusNeighborsClassifier(radius=0.2)
 __ = model.fit(r.pyx,r.pyy.values.ravel())
 yhat = model.predict(r.pyx)
 ```
@@ -90,11 +95,46 @@ yhat = model.predict(r.pyx)
 The __"py"__ object in __R__ contains an interface to the __python__ variables
 
 ```{r yhats}
-df_imp1 <- df[py$yhat == df$Response_class,]
+df_imp1 <- df[py$yhat == df$BORc,]
 
- ggplot(df_imp1, aes(x=X, y=Y,color=Response_class)) +
+tsne_filter <- ggplot(df_imp1, aes(x=X, y=Y,color=BORc)) +
  geom_point() +
- facet_wrap( ~ Response_class)
+ facet_wrap( ~ BORc)
+ggsave('fig/tsne_filter.png',plot=tsne_filter)
+tsne_filter
 ```
+
+```{r}
+borc1_ll <- df_imp1 %>% filter(BORc==1) %>% pull(var = GTPSposID)
+```
+
+```{r}
+if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
+  dbConn  <- dbConnect(MySQL(), group='specimen_management')
+  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')  
+  intSites <- getDBgenomicFragments(samples$SpecimenAccNum, 
+                                    'specimen_management', 'intsites_miseq') %>%
+    GenomicRanges::as.data.frame() %>% filter(refGenome == 'hg38') %>%
+    makeGRangesFromDataFrame(keep.extra.columns=TRUE) %>%
+    stdIntSiteFragments(CPUs = numCores ) %>%
+    collapseReplicatesCalcAbunds() %>%
+    annotateIntSites(CPUs = numCores)
+  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+} else {
+  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+}
+
+intSites_dd <- intSites %>% as.data.frame() %>%
+  mutate(GTPSposID=paste0(GTSP,posid  )) %>%
+  filter(GTPSposID %in% borc1_ll) %>%
+  select(c(timePoint,posid,inFeature,nearestFeature,nearestOncoFeature,nearestOncoFeatureDist)) %>%
+  dplyr::rename(nFeature=nearestFeature) %>%
+  dplyr::rename(nOncoF=nearestOncoFeature) %>%
+  dplyr::rename(nOncoFD=nearestOncoFeatureDist) %>%
+  saveRDS(file=file.path(.features_d,'borc1_tab.rds'))
+```
+
+
+
 
 More information can be found in <https://rstudio.github.io/reticulate/>
