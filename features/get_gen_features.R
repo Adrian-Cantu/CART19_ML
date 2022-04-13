@@ -35,8 +35,8 @@ test_sample <- intSites %>% as.data.frame() %>%
 window_size_refSeq <- c("10k"=1e4, "100k"=1e5, "1M"=1e6)
 window_size_CpG_counts <- c("1k"=1e3, "10k"=1e4)
 window_size_CpG_density <- c("10k"=1e4, "100k"=1e5, "1M"=1e6)
-#window_size_GC <- c("100"=100, "1k"=1000, "10k"=1e4, "100k"=1e5, "1M"=1e6)
-window_size_GC <- c("100"=100, "1k"=1000)
+window_size_GC <- c("100"=100, "1k"=1000, "10k"=1e4, "100k"=1e5, "1M"=1e6)
+#window_size_GC <- c("100"=100, "1k"=1000)
 window_size_DNaseI <- c("1k"=1e3, "10k"=1e4, "100k"=1e5, "1M"=1e6)
 window_size_epi <- c("10k"=1e4)
 
@@ -92,19 +92,26 @@ from_counts_to_density <- function(sites, column_prefix, window_size) {
 ####
 #all_names <- unique(intSites$GTSP)[100:104]
 all_names <- unique(intSites$GTSP)
-plan(sequential)
-#plan(multisession, workers = .num_cores)
+#plan(sequential)
+plan(multisession, workers = .num_cores)
 l_names <- length(all_names)
 
+hg38_seqinfo <- seqinfo(BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38)
+hg38_seqlev <- seqlevels(BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38)
 
-full_table2 <- map(all_names, function(c_gtsp) {
+full_table2 <- future_map(all_names, function(c_gtsp) {
     c_sample <- intSites %>% 
       as.data.frame() %>%
-      filter(GTSP==c_gtsp) 
+      filter(GTSP==c_gtsp) %>% 
+      GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns=TRUE)
+    seqlevels(c_sample) <- hg38_seqlev
+    seqinfo(c_sample) <- hg38_seqinfo
+    
     c_num <- which(all_names==c_gtsp)
     print(paste0('starting work on ',c_gtsp,' ',c_num,'/',l_names,'--',format(Sys.time(), "%a %b %d %X %Y")))
   
     c_tab <- c_sample %>% #as.data.frame() %>%
+      #GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns=TRUE,seqinfo = hg38_seqinfo) %>% 
       hiAnnotator::getFeatureCounts(refGenes, "refSeq_counts", width = window_size_refSeq) %>%
       GCcontent::getGCpercentage("GC", window_size_GC, genome_sequence) %>%
       hiAnnotator::getFeatureCounts(CpG_islands, "CpG_counts", width = window_size_CpG_counts) %>%
