@@ -180,14 +180,14 @@ features_responses_pop3 <-
   
 
 #save
-saveRDS(features_responses_pop2,file=file.path(.features_d,'sample_features_20220419.rds'))
+saveRDS(features_responses_pop3,file=file.path(.features_d,'sample_features_20220419.rds'))
 
-write.table(features_responses_pop2, file=file.path(.features_d,'sample_features_20220419.tsv'), quote=FALSE, sep='\t',row.names = FALSE)
+write.table(features_responses_pop3, file=file.path(.features_d,'sample_features_20220419.tsv'), quote=FALSE, sep='\t',row.names = FALSE)
 
 
 wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, "sample_features")
-openxlsx::writeDataTable(wb,"sample_features",features_responses_pop2)
+openxlsx::writeDataTable(wb,"sample_features",features_responses_pop3)
 openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220419.xlsx'), overwrite = TRUE)
 
 
