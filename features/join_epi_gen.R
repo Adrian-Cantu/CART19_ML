@@ -175,7 +175,8 @@ features_responses_pop2 <- left_join(features_responses_pop,cluster_GTSP,by='GTS
 
 features_responses_pop3 <- 
   left_join(features_responses_pop2,CHP959_relapse,by=c('Patient'='study_id')) %>% 
-  mutate(relapse_yn=ifelse(is.na(relapse_yn),'NA',relapse_yn))
+  mutate(relapse_yn=ifelse(is.na(relapse_yn),'NA',relapse_yn)) %>% 
+  relocate(relapse_yn,.after=BORc)
   
   
 
