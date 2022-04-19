@@ -1,9 +1,9 @@
 library(RMySQL)
 library(tidyverse)
 library(hiAnnotator)
-library(furrr)
+#library(furrr)
 
-
+source('../.Rprofile')
 
 
 
@@ -93,13 +93,13 @@ from_counts_to_density <- function(sites, column_prefix, window_size) {
 #all_names <- unique(intSites$GTSP)[100:104]
 all_names <- unique(intSites$GTSP)
 #plan(sequential)
-plan(multisession, workers = .num_cores)
+#plan(multisession, workers = .num_cores)
 l_names <- length(all_names)
 
 hg38_seqinfo <- seqinfo(BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38)
 hg38_seqlev <- seqlevels(BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38)
 
-full_table2 <- future_map(all_names, function(c_gtsp) {
+full_table2 <- map(all_names, function(c_gtsp) {
     c_sample <- intSites %>% 
       as.data.frame() %>%
       filter(GTSP==c_gtsp) %>% 

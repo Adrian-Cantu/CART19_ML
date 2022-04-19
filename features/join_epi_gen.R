@@ -64,6 +64,16 @@ CARTSite_Response <- read_excel("CARTSite.Response.BOR.01142022.xlsx",
                      "numeric", "text", "numeric", "text"))
 # BOR= best overal response
 colnames(CARTSite_Response) <- c('Trial','ID','inf_date','response_date','response_timepoint','BOR','BORc','note')
+
+# import relapse data
+CHP959_relapse <- read_excel("CHP959_relapse.xlsx", 
+                             col_types = c("text", "skip", "skip", 
+                                           "skip", "skip", "skip", "skip", "text", 
+                                           "skip", "skip", "skip", "skip", "skip")) %>% 
+  mutate(study_id=str_replace(study_id,'CHP959','CHOP959-'))
+
+
+
 dbConn  <- dbConnect(MySQL(), group='specimen_management')
 
 ########
@@ -160,16 +170,25 @@ features_responses_pop2 <- left_join(features_responses_pop,cluster_GTSP,by='GTS
   mutate(Trial=ifelse(Trial=="Gill_CART19_18415","CART19_CLL",Trial)) %>%
   relocate(c(Patient,Trial,Timepoint,CellType,BORc),.after=SpecimenAccNum)
 
-#save
-saveRDS(features_responses_pop2,file=file.path(.features_d,'sample_features_20220209.rds'))
 
-write.table(features_responses_pop2, file=file.path(.features_d,'sample_features_20220209.tsv'), quote=FALSE, sep='\t',row.names = FALSE)
+## add relapse
+
+features_responses_pop3 <- 
+  left_join(features_responses_pop2,CHP959_relapse,by=c('Patient'='study_id')) %>% 
+  mutate(relapse_yn=ifelse(is.na(relapse_yn),'NA',relapse_yn))
+  
+  
+
+#save
+saveRDS(features_responses_pop2,file=file.path(.features_d,'sample_features_20220419.rds'))
+
+write.table(features_responses_pop2, file=file.path(.features_d,'sample_features_20220419.tsv'), quote=FALSE, sep='\t',row.names = FALSE)
 
 
 wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, "sample_features")
 openxlsx::writeDataTable(wb,"sample_features",features_responses_pop2)
-openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220209.xlsx'), overwrite = TRUE)
+openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220419.xlsx'), overwrite = TRUE)
 
 
 #######################################
