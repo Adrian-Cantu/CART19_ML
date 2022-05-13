@@ -1,0 +1,105 @@
+---
+title: "A good tile"
+author: "myself"
+date: "`r format(Sys.time(), '%Y %B %d')`"
+citation-style: Mod_cell.csl
+geometry: margin=2cm
+fancy: true
+output:
+  bookdown::pdf_document2: 
+    template: Adrian-Cantu_template.tex
+    keep_tex: true
+    toc: false
+  bookdown::html_document2: default
+bibliography: 'mios.bib'
+# produce both html and pdf 
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding,output_format = "all") })
+---
+
+```{r setup, message = FALSE, warning = FALSE, echo=FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	echo = FALSE,
+	fig.pos = 'H'
+)
+library(RMySQL)
+library(tidyverse)
+library(knitr)
+library(gt34)
+if (is.null(opts_knit$get("rmarkdown.pandoc.to"))) {
+  doc_format <- 'live'
+} else {
+  doc_format <-  opts_knit$get("rmarkdown.pandoc.to")
+}
+
+```
+
+<!-- yaml variables can be defined after running some R code  -->
+
+---
+my_subtitle: "This document is format `r doc_format`"
+---
+
+```{r}
+intSites_prev <- readRDS(file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+
+
+trials <- c('UPENN_CART19_CLL', 'UPENN_CART19_ALL', 'UPENN_CART19_AML', 'Gill_CART19_18415')
+
+# Retrieve all relevant samples from sample database.
+invisible(sapply(dbListConnections(MySQL()), dbDisconnect))
+dbConn  <- dbConnect(MySQL(), group='specimen_management')
+arr <-paste0("select * from gtsp where Trial IN ('",paste(trials,collapse = "','"),"')")
+samples <- dbGetQuery(dbConn, arr)
+
+# Create a list of all GTSPs that passed through the INSPIIRED pipeline.
+dbConn_sample  <- dbConnect(MySQL(), group='intsites_miseq')
+intSitesamples <- unname(unlist(dbGetQuery(dbConn_sample, 'select sampleName from samples where sampleName like "%GTSP%"')))
+intSitesamples <- unique(gsub('\\-\\d+$', '', intSitesamples))
+
+CART_samples <- intSitesamples[intSitesamples %in% samples$SpecimenAccNum]
+
+
+old_gtsp <- unique(intSites_prev$GTSP)
+#setdiff(old_gtsp,intSitesamples)
+
+
+
+intSitesamples_table <- dbGetQuery(dbConn, 'select * from gtsp')
+old_samples_table <- intSitesamples_table %>% 
+  filter(SpecimenAccNum %in% old_gtsp)
+new_samples_table <- intSitesamples_table %>% 
+  filter(SpecimenAccNum %in% CART_samples)
+
+up_samples <- setdiff(new_samples_table,old_samples_table)
+up_samples
+```
+
+```{r}
+AML_table <- new_samples_table %>% 
+  filter(Trial=='UPENN_CART19_AML')
+AML_table
+```
+
+
+```{r}
+all_features <- readRDS(file.path(.features_d,'sample_features_20220419.rds'))
+all_features %>% 
+  separate(Patient, into=c('trial','pnum'),remove = FALSE,sep='-') %>%
+  filter(trial=='CHOP959') %>%
+  arrange(pnum) %>% 
+  select(c(Patient,relapse_yn)) %>% 
+  unique()
+```
+
+```{r}
+unique(intSites_prev$patient)
+
+```
+
+```{r}
+samples %>% filter(Trial=='UPENN_CART19_AML')
+```
+
