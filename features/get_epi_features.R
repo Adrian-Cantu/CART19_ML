@@ -2,24 +2,24 @@ library(RMySQL)
 library(tidyverse)
 library(hiAnnotator)
 library(furrr)
-
+library(gt23)
                     
 
 
 
-if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
+if( !file.exists(file.path(.data_d,'intSites_full_ALL.rds'))) {
   dbConn  <- dbConnect(MySQL(), group='specimen_management')
-  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')  
+  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="UPENN_CART19_ALL"')  
   intSites <- getDBgenomicFragments(samples$SpecimenAccNum, 
                                     'specimen_management', 'intsites_miseq') %>%
     GenomicRanges::as.data.frame() %>% filter(refGenome == 'hg38') %>%
     makeGRangesFromDataFrame(keep.extra.columns=TRUE) %>%
-    stdIntSiteFragments(CPUs = numCores ) %>%
+    stdIntSiteFragments(CPUs = .num_cores ) %>%
     collapseReplicatesCalcAbunds() %>%
-    annotateIntSites(CPUs = numCores)
-  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+    annotateIntSites(CPUs = .num_cores)
+  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL.rds'))
 } else {
-  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL.rds'))
 }
 intSites <- intSites %>% as.data.frame() %>%
   mutate(GTPSposID=paste0(GTSP,posid  )) %>%
@@ -45,7 +45,7 @@ all_epi <- lapply(epi_files,function(x){readRDS(file.path(.epigenetic_features_d
 #kk_test <- getFeatureCounts(intSites, all_epi[[1]], 'test')
 
 plan(sequential)
-plan(multisession, workers = .num_cores)
+#plan(multisession, workers = .num_cores)
 l_names <- length(all_names)
 full_table2 <- lapply(all_names,function(c_gtsp){
   c_sample <- intSites %>% as.data.frame() %>%

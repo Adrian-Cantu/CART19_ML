@@ -17,9 +17,9 @@ epi_f <- readRDS(file.path(.features_d,'epi_data.rds'))
 # saveRDS(epi_n,file=file.path(.features_d,'epi_data.rds'))
 
 
-if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
+if( !file.exists(file.path(.data_d,'intSites_full_ALL.rds'))) {
   dbConn  <- dbConnect(MySQL(), group='specimen_management')
-  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')  
+  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="UPENN_CART19_ALL"')  
   intSites <- getDBgenomicFragments(samples$SpecimenAccNum, 
                                     'specimen_management', 'intsites_miseq') %>%
     GenomicRanges::as.data.frame() %>% filter(refGenome == 'hg38') %>%
@@ -27,9 +27,9 @@ if( !file.exists(file.path(.data_d,'intSites_full_ALL_CLL.rds'))) {
     stdIntSiteFragments(CPUs = numCores ) %>%
     collapseReplicatesCalcAbunds() %>%
     annotateIntSites(CPUs = numCores)
-  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL.rds'))
 } else {
-  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL_CLL.rds'))
+  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL.rds'))
 }
 
 intSites_dd <- intSites %>% as.data.frame() %>%
