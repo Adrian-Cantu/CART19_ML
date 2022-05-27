@@ -67,9 +67,10 @@ colnames(CARTSite_Response) <- c('Trial','ID','inf_date','response_date','respon
 
 # import relapse data
 CHP959_relapse <- read_excel("CHP959_relapse.xlsx", 
-                             col_types = c("text", "skip", "skip", 
+                             col_types = c("text", "date", "skip", 
                                            "skip", "skip", "skip", "skip", "text", 
-                                           "skip", "skip", "skip", "skip", "skip")) %>% 
+                                           "numeric", "skip", "skip", "skip", 
+                                           "numeric")) %>% 
   mutate(study_id=str_replace(study_id,'CHP959','CHOP959-'))
 
 
@@ -97,6 +98,9 @@ pid_to_bor <- CARTSite_Response %>%
   summarise(BORc=max(BORc), .groups = 'drop') %>%
   mutate(PID=paste0(Trial,'-',sprintf("%02d", ID))) %>%
   select(c(PID,BORc))
+
+
+
  
 gtsp_to_bor <- left_join(gtsp_to_pid,pid_to_bor,by='PID') 
 
@@ -161,35 +165,44 @@ features_responses_pop <- left_join(features_responses,pop_stats,by='GTSP') %>%
 ###
 # add cluster
 
-cluster_GTSP <- readRDS(file.path(.data_d,'cluster_GTSP.rds'))
+cluster_GTSP <- readRDS(file.path(.features_d,'cluster_GTSP.rds'))
 old_f_names <- c('GTSP'          , 'timePoint', 'PID'    , 'cellType', 'estAbund_avg')
 new_f_names <- c('SpecimenAccNum', 'Timepoint', 'Patient', 'CellType', 'estAbund')
 features_responses_pop2 <- left_join(features_responses_pop,cluster_GTSP,by='GTSP') %>%
   rename_with(~ str_replace(.x,'Kb$','k')) %>%
   rename_with(~ new_f_names, all_of(old_f_names)) %>%
-  mutate(Trial=ifelse(Trial=="Gill_CART19_18415","CART19_CLL",Trial)) %>%
+  #mutate(Trial=ifelse(Trial=="Gill_CART19_18415","CART19_CLL",Trial)) %>%
   relocate(c(Patient,Trial,Timepoint,CellType,BORc),.after=SpecimenAccNum)
 
 
 ## add relapse
 
+CHP959_relapse_fix <- CHP959_relapse %>% 
+  mutate(time_relapse_or_lastcontact=ifelse(relapse_yn=='1',timetorelapse_days,lastcontact_days)) %>% 
+  select(c(study_id,relapse_yn,time_relapse_or_lastcontact)) 
+
 features_responses_pop3 <- 
-  left_join(features_responses_pop2,CHP959_relapse,by=c('Patient'='study_id')) %>% 
+  left_join(features_responses_pop2,CHP959_relapse_fix,by=c('Patient'='study_id')) %>% 
   mutate(relapse_yn=ifelse(is.na(relapse_yn),'NA',relapse_yn)) %>% 
-  relocate(relapse_yn,.after=BORc)
+  relocate(relapse_yn,time_relapse_or_lastcontact,.after=BORc)
   
   
 
 #save
-saveRDS(features_responses_pop3,file=file.path(.features_d,'sample_features_20220419.rds'))
+saveRDS(features_responses_pop3,
+  file=file.path(.features_d,paste0('sample_features_',format(Sys.time(), "%Y%m%d"),'.rds')))
 
-write.table(features_responses_pop3, file=file.path(.features_d,'sample_features_20220419.tsv'), quote=FALSE, sep='\t',row.names = FALSE)
+write.table(features_responses_pop3,
+  file=file.path(.features_d,paste0('sample_features_',format(Sys.time(), "%Y%m%d"),'.tsv')),
+  quote=FALSE, sep='\t',row.names = FALSE)
 
 
 wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, "sample_features")
 openxlsx::writeDataTable(wb,"sample_features",features_responses_pop3)
-openxlsx::saveWorkbook(wb, file.path(.features_d,'sample_features_20220419.xlsx'), overwrite = TRUE)
+openxlsx::saveWorkbook(wb,
+  file.path(.features_d,paste0('sample_features_',format(Sys.time(), "%Y%m%d"),'.xlsx')),
+  overwrite = TRUE)
 
 
 #######################################

@@ -4,5 +4,6 @@
 .features_d <- file.path(.main_d,'features')
 .epigenetic_features_d <- file.path(.features_d,'epi_rds')
 .genetic_features_d    <- file.path(.features_d,'gen_rds')
+.cluster_features_d <- file.path(.features_d,'cluster_rds')
 .num_cores <- max(min(parallel::detectCores()-2,30),1)
 .num_top_clones <- 30
