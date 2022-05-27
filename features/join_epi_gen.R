@@ -132,8 +132,8 @@ calculateUC50 <- function(abund){
 
 # Recreate columns used in published data.
 pop_stats <- intSites_dd %>%
-  mutate(timePoint=tolower(timePoint)) %>%
-  group_by(GTSP,timePoint,cellType) %>%
+  #mutate(timePoint=tolower(timePoint)) %>%
+  group_by(GTSP,timePointDays,cellType) %>%
 #  mutate(within_gene=ifelse(nearest_geneDist == 0, TRUE, FALSE)) %>%
   summarise(
     "numUniqSites" = n(),
@@ -166,7 +166,7 @@ features_responses_pop <- left_join(features_responses,pop_stats,by='GTSP') %>%
 # add cluster
 
 cluster_GTSP <- readRDS(file.path(.features_d,'cluster_GTSP.rds'))
-old_f_names <- c('GTSP'          , 'timePoint', 'PID'    , 'cellType', 'estAbund_avg')
+old_f_names <- c('GTSP'          , 'timePointDays', 'PID'    , 'cellType', 'estAbund_avg')
 new_f_names <- c('SpecimenAccNum', 'Timepoint', 'Patient', 'CellType', 'estAbund')
 features_responses_pop2 <- left_join(features_responses_pop,cluster_GTSP,by='GTSP') %>%
   rename_with(~ str_replace(.x,'Kb$','k')) %>%
