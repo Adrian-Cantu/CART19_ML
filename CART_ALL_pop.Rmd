@@ -1,0 +1,220 @@
+---
+title: "CART samples and population metrics"
+author: "Adrian Cantu"
+date: "`r format(Sys.time(), '%Y %B %d')`"
+citation-style: Mod_cell.csl
+geometry: margin=2cm
+#fancy: true
+output:
+  bookdown::pdf_document2: 
+    template: Adrian-Cantu_template.tex
+    keep_tex: true
+    toc: false
+#  bookdown::html_document2: default
+bibliography: 'mios.bib'
+# produce both html and pdf 
+# knit: (function(inputFile, encoding) {
+#   rmarkdown::render(inputFile, encoding = encoding,output_format = "all") })
+---
+
+```{r setup, message = FALSE, warning = FALSE, echo=FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	echo = FALSE,
+	fig.pos = 'H'
+)
+library(knitr)
+if (is.null(opts_knit$get("rmarkdown.pandoc.to"))) {
+  doc_format <- 'live'
+} else {
+  doc_format <-  opts_knit$get("rmarkdown.pandoc.to")
+}
+
+library(tidyverse)
+library(RMySQL)
+library(hiAnnotator)
+library(vegan)
+library(reldist)
+library(gt34)
+
+```
+
+
+```{r}
+if( !file.exists(file.path(.data_d,'intSites_full_ALL.rds'))) {
+  dbConn  <- dbConnect(MySQL(), group='specimen_management')
+  samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="UPENN_CART19_ALL"')  
+  intSites <- getDBgenomicFragments(samples$SpecimenAccNum, 
+                                    'specimen_management', 'intsites_miseq') %>%
+    GenomicRanges::as.data.frame() %>% filter(refGenome == 'hg38') %>%
+    makeGRangesFromDataFrame(keep.extra.columns=TRUE) %>%
+    stdIntSiteFragments(CPUs = numCores ) %>%
+    collapseReplicatesCalcAbunds() %>%
+    annotateIntSites(CPUs = numCores)
+  saveRDS(intSites, file.path(.data_d,'intSites_full_ALL.rds'))
+} else {
+  intSites <- readRDS(file.path(.data_d,'intSites_full_ALL.rds'))
+}
+
+intSites_dd <- intSites %>% as.data.frame() %>%
+  mutate(GTPSposID=paste0(GTSP,posid  )) %>%
+  group_by(GTSP) %>%
+  filter(seqnames %in% paste0("chr", c(1:22, "X", "Y", "M")))
+```
+
+```{r}
+#import response data
+
+library(readxl)
+CARTSite_Response <- read_excel("CARTSite.Response.BOR.01142022.xlsx", 
+                     col_types = c("text", "numeric", "skip", 
+                     "date", "skip", "skip", "skip", "date", 
+                     "numeric", "text", "numeric", "text"))
+# BOR= best overal response
+colnames(CARTSite_Response) <- c('Trial','ID','inf_date','response_date','response_timepoint','BOR','BORc','note')
+
+# import relapse data
+CHP959_relapse <- read_excel("CHP959_relapse.xlsx", 
+                             col_types = c("text", "date", "skip", 
+                                           "skip", "skip", "skip", "skip", "text", 
+                                           "numeric", "skip", "skip", "skip", 
+                                           "numeric")) %>% 
+  mutate(study_id=str_replace(study_id,'CHP959','CHOP959-'))
+```
+
+```{r}
+
+#match GTSP to BOR
+dbConn  <- dbConnect(MySQL(), group='specimen_management')
+
+########
+#samples <- dbGetQuery(dbConn,'select * from gtsp where Trial="CART19_ALL" or Trial="CART19_CLL"')
+samples <- dbGetQuery(dbConn,'select * from gtsp')%>%
+  filter(SpecimenAccNum %in% intSites$GTSP)
+
+
+gtsp_to_pid <- samples %>% select(c("SpecimenAccNum","SamplePatientCode","Patient","Trial")) %>%
+  mutate(SamplePatientCode = str_replace(SamplePatientCode,'^CHP','CHOP')) %>%
+  separate(SamplePatientCode,c('Trial2',NA),'(?<=^(CHOP|UPCC))(?=\\d*(_|\\-))') %>%
+  mutate(Trial2=ifelse(Trial2=='xxx','CHOP',Trial2)) %>%
+  mutate(Patient=str_replace(Patient,'^\\D+','')) %>%
+  mutate(Patient=str_replace(Patient,'\\-?[^0-9\\-].*','')) %>%
+  mutate(PID=paste0(Trial2,Patient)) %>%
+  mutate(GTSP=SpecimenAccNum) %>%
+  select(c(GTSP,PID,Trial))
+
+pid_to_bor <- CARTSite_Response %>%
+  group_by(Trial,ID) %>%
+  summarise(BORc=max(BORc), .groups = 'drop') %>%
+  mutate(PID=paste0(Trial,'-',sprintf("%02d", ID))) %>%
+  select(c(PID,BORc))
+
+gtsp_to_bor <- left_join(gtsp_to_pid,pid_to_bor,by='PID') 
+
+```
+
+```{r}
+CHP959_relapse_fix <- CHP959_relapse %>% 
+  mutate(time_relapse_or_lastcontact=ifelse(relapse_yn=='1',timetorelapse_days,lastcontact_days)) %>% 
+  select(c(study_id,relapse_yn,time_relapse_or_lastcontact)) 
+
+CHP959_relapse_fix_gtsp <-left_join(CHP959_relapse_fix,gtsp_to_pid,by=c('study_id'='PID'))
+
+relapse_plus_bor <- full_join(gtsp_to_bor,CHP959_relapse_fix,by=c('PID'='study_id')) %>% 
+  mutate(relapse_yn=ifelse(is.na(relapse_yn),'NA',relapse_yn))
+```
+
+```{r}
+
+pdf_table <- function(table){
+  table_insites <- table
+  tt_strip <- which(as.logical(as.numeric(as.factor(table_insites$PID))%%2))
+  tt_l2 <- tt_l1 <- as.logical(as.numeric(as.factor(table_insites$PID))%%2)
+  tt_l2[length(tt_l2) + 1] <- tt_l2[length(tt_l2)]
+  tt_l2 <- tt_l2[2:length(tt_l2)]
+  tt_lspace <- ifelse(xor(tt_l1, tt_l2), "\\addlinespace", 
+    "")
+  table_insites %>% #dplyr::rename(`Time(d)` = .data$timePointDays) %>% 
+    dplyr::relocate(.data$numClones, .after = .data$PID) %>% 
+    dplyr::rename(Clones = .data$numClones) %>% dplyr::rename(Unique = .data$numUniqSites) %>% 
+    dplyr::rename(`Max Clone` = .data$maxRelAbund) %>%
+    dplyr::rename(`TrelORcon` = .data$time_relapse_or_lastcontact) %>% 
+    mutate(TrelORcon=gt23::ppNum(.data$TrelORcon)) %>% 
+    mutate(Clones=gt23::ppNum(.data$Clones)) %>%
+    mutate(Unique=gt23::ppNum(.data$Unique)) %>%
+    mutate(Chao1=gt23::ppNum(.data$Chao1)) %>%
+    mutate(UC50=gt23::ppNum(.data$UC50)) %>%
+    kableExtra::kbl("latex", 
+    booktabs = TRUE, longtable = TRUE, linesep = tt_lspace) %>% 
+    kableExtra::add_header_above(c(`Sample Info` = 4, `Clone info` = 3, 
+      `Population info` = 5,`Response info`=3)) %>% kableExtra::kable_styling(latex_options = c("HOLD_position", 
+    "repeat_header", "striped"), font_size = 7, stripe_index = tt_strip)
+}
+
+dd <- gt34::get_pop_metrics_gtsp(intSites_dd)
+ddd<-left_join(dd,relapse_plus_bor %>% select(-Trial),by='GTSP') %>% 
+  mutate(patient=NULL) %>% 
+  relocate(PID,.after=cellType) %>% 
+  arrange(PID,timePointDays,cellType) %>% 
+  mutate(timePointDays=NULL)
+
+```
+
+
+# Samples
+
+The samples studied in this report, the numbers of sequence reads, recovered integrated vectors, and unique integration
+sites available are shown in the table below. We quantify population clone diversity using Gini coefficients, Shannon index, Simpson index,and UC50. The Gini coefficient provides a measure of inequality in clonal abundance in each sample. The coefficient equals zero when all sites are equally abundant (polyclonal) and increases as fewer sites account for more of the total (oligoclonal). The Shannon index is another widely used measure of diversity; it accounts for both abundance and evenness of distribution of the integration events. The Simpson index is the probability that two cells chosen at random have the same insertion site.
+The UC50 is the number of unique clones which make up the top 50% of the sample's abundance. For polyclonal samples,
+one may expect a low Gini coefficient, low Simpson Index, high Shannon Index, and high UC50.
+
+Under most circumstances only a subset of sites present in the specimen will be sampled [@bushmanChallengesEstimatingNumbers2021]. We thus include an estimate of integration site population size based on frequency of isolation information from the SonicLength method [@berry2012]. The 'S.chao1' column denotes the estimated lower bound for population size derived using the Chao estimate [@chao1987].
+
+We estimate the numbers of cell clones sampled using the SonicLength method [@berry2012]; this is summarized in the column “numClones”. Integration sites were recovered using ligation mediated PCR after random fragmentation of genomic DNA, which reduces recovery biases compared with restriction enzyme cleavage. Relative abundance was not measured from read counts, which are known to be inaccurate, but from marks introduced into DNA specimens prior to PCR amplification using the SonicLength method [@berry2012].
+
+<!-- \newpage -->
+\blandscape
+
+```{r,results='asis'}
+pdf_table(ddd)
+```
+
+\elandscape
+
+
+```{r}
+# dd <- gt34::get_pop_metrics_gtsp(intSites_dd)
+  # if (doc_format=='live') {
+  #   intSites_dd %>%
+  #     dplyr::mutate(cellType = cellTypeControlVoc2(.data$cellType)) %>% 
+  #     get_pop_metrics_gtsp() %>%
+  #     dplyr::arrange(.data$patient,.data$timePointDays, .data$cellType)
+  # } else if (doc_format=='latex') {
+  #   ppf_table(intSites_dd)
+  # } else if (doc_format=='html'){
+  #   intSites_dd %>%
+  #     dplyr::mutate(cellType = cellTypeControlVoc2(.data$cellType)) %>% 
+  #     get_pop_metrics_gtsp() %>%
+  #     dplyr::arrange(.data$patient,.data$timePointDays, .data$cellType) %>% 
+  #     kable( "html") %>%
+  #     kable_paper("hover", full_width = F)
+  # } 
+```
+
+
+
+```{r}
+gt34::print_table(relapse_plus_bor %>% filter(is.na(GTSP)) %>% filter(grepl('CHOP959',PID)) )
+
+```
+
+
+# References
+
+<div id="refs"></div>
+
+<!-- # Some apendix after the references -->
+
+<!-- repellendus ipsum aut consectetur expedita -->
+
